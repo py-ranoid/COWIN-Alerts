@@ -12,14 +12,14 @@ def load_yaml(fname):
         creds = yaml.load(creds_file.read(),Loader=yaml.FullLoader)
     return creds
 
-def send_mail(to_list, message, domain_name, api_key):
+def send_mail(to_list, subject, message, domain_name, api_key):
     return requests.post(
         "https://api.mailgun.net/v3/%s/messages"%domain_name,
         auth=("api", api_key),
         data={"from": "COWIN Alerts <noreply@%s>"%domain_name,
               "to": ['vishstar88@gmail.com'],
               "bcc": to_list,
-              "subject": "Vaccine Slots found!",
+              "subject": subject,
               "html": message})
 
 
