@@ -1,6 +1,8 @@
 import requests, yaml, os
 import pickle
+import json
 import os.path
+from collections import OrderedDict
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
@@ -13,6 +15,7 @@ def load_yaml(fname):
     return creds
 
 def send_mail(to_list, subject, message, domain_name, api_key):
+    if len(to_list)==0:return
     return requests.post(
         "https://api.mailgun.net/v3/%s/messages"%domain_name,
         auth=("api", api_key),
@@ -60,6 +63,17 @@ def read_vals(sheet_id, sheet_range="Main"):
 def save_users(creds):
     sheet_vals = read_vals(sheet_id=creds['sheets']['sheet_id'])
     pd.DataFrame(sheet_vals[1:],columns=sheet_vals[0]).to_csv('users.csv')
+
+with open ('headers.json') as f:
+    headers_list = json.load(f)
+
+# Create ordered dict from Headers above
+ordered_headers_list = []
+for headers in headers_list:
+    h = OrderedDict()
+    for header,value in headers.items():
+        h[header]=value
+    ordered_headers_list.append(h)
 
 if __name__ == "__main__":
     print(read_vals())
