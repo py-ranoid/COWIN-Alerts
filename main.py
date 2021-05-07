@@ -6,7 +6,7 @@ import random
 
 REFRESH_INTERVAL = 10
 SEND_ALL_INTERVAL = 180
-WAIT_INTERVAL = 150
+WAIT_INTERVAL = 120
 
 def get_slots_by_pincode(pincode="600096"):
     resp = utils._get_slots_by_pincode(pincode)
@@ -34,27 +34,38 @@ def update_users(creds):
                     domain_name=creds['mailgun']['domain'], api_key=creds['mailgun']['key'])
 
 def main(creds,send_all=False):
+    #Get all live users
     users_df = pd.read_csv('users.csv')
-    users_df = users_df[pd.to_datetime(users_df['Timestamp']).dt.tz_localize(utils.tz_india)>datetime.datetime.now(utils.tz_india)-datetime.timedelta(days=7)]
+    NOW = datetime.datetime.now(utils.tz_india)
+    users_df = users_df[pd.to_datetime(users_df['Timestamp']).dt.tz_localize(utils.tz_india)>NOW-datetime.timedelta(days=7)]
     status_count = []
+
+    # Iterate over all pincodes
+    print ("%s - Polling pincodes. Num unique : %r"%(str(NOW)[:16], users_df.Pincode.nunique()))
     for pincode, df in users_df.groupby('Pincode'):
+
+        # Get sessions available in given pincode
         pincode = str(pincode)
         all_sessions, available_sessions, status_code = get_slots_by_pincode(pincode)
         status_count.append(status_code)
-        if not send_all and (len(available_sessions)==0 or sum(all_sessions['Slots']<2)):
-            print ("%s | %d | PINCODE :%s\t- NO SLOTS AVAILABLE"%(str(datetime.datetime.now(utils.tz_india))[:16], status_code, pincode))
+        if not status_code == 200:
             continue
-        if not status_code == 200: continue
+
         if send_all:
             message = all_sessions.to_html() if len(all_sessions)>0 else "No hospitals/PHCs found in pincode with open or booked slots. <br> You can also sign up for slot alerts in neighboring pincodes here : bit.ly/cowin-alerts "
             subject = "Pincode Centers Summary (%s)"%pincode
         else:
-            print ("%s | %d | PINCODE :%s\t- SLOTS FOUND"%(str(datetime.datetime.now(utils.tz_india))[:16], status_code, pincode))
+            if (len(available_sessions)==0 or sum(all_sessions['Slots']<2)):
+                # print ("%s | %d | PINCODE :%s\t- NO SLOTS AVAILABLE"%(str(NOW)[:16], status_code, pincode))
+                continue
+            print ("%s | %d | PINCODE :%s\t- SLOTS FOUND"%(str(NOW)[:16], status_code, pincode))
             message = available_sessions.to_html()
             subject = "Vaccine Slots found! (%s)"%pincode
+
+        # Mails summary if send_all else sends available sessions
         resp = utils.send_mail(to_list=df['Email Address'].tolist(), subject=subject, message = message,
                         domain_name=creds['mailgun']['domain'], api_key=creds['mailgun']['key'])
-    print (Counter(status_count))
+    print ("%s - Response Summary : %r"%(str(NOW)[:16],pd.Series(status_count).value_counts().to_dict()))
 
 if __name__ == "__main__":
     iter_num = 0
