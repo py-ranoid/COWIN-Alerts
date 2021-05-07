@@ -45,7 +45,7 @@ def _get_slots_by_district(district="571"):
     resp = r.get(URL)
     return resp
 
-def get_district(pincode="6000096"):
+def get_district(pincode="600096"):
     resp = _get_slots_by_pincode(pincode)
     if resp.json()['centers']:
         return resp.json()['centers'][0]['district_name']
