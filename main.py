@@ -6,7 +6,7 @@ import random
 import json
 
 REFRESH_INTERVAL = 15
-SEND_ALL_INTERVAL = 180
+SEND_ALL_INTERVAL = 250
 WAIT_INTERVAL = 120
 NUM_PINGS = {}
 MAX_PINGS = 6
@@ -78,8 +78,8 @@ def main_alt(creds,send_all=False):
 
     with open('dist_map.json') as f:
         dist_map = json.load(f)
-    users_df['district_id'] = users_df['Pincode'].astype(str).apply(lambda x:dist_map.get(x,{'district_id':None})['district_id'])
-    users_df['district_name'] = users_df['Pincode'].astype(str).apply(lambda x:dist_map.get(x,{'district_name':None})['district_name'])
+    users_df['district_id'] = users_df['Pincode'].fillna(0).astype(int).astype(str).apply(lambda x:dist_map.get(x,{'district_id':None})['district_id'])
+    users_df['district_name'] = users_df['Pincode'].fillna(0).astype(int).astype(str).apply(lambda x:dist_map.get(x,{'district_name':None})['district_name'])
 
     # Iterate over all pincodes
     print ("%s - Polling district codes. Num unique : %r"%(str(NOW)[:16], users_df.district_id.nunique()))
@@ -90,14 +90,15 @@ def main_alt(creds,send_all=False):
         # Get sessions available in given district
         district = str(int(district))
         district_name = df['district_name'].iloc[0]
-        all_sessions, available_sessions, status_code = get_slots_by_district(district)
+        try:all_sessions, available_sessions, status_code = get_slots_by_district(district)
+        except: status_code = 666
         status_count.append(status_code)
         if not status_code == 200:
             continue
 
         if send_all:
             message = all_sessions.to_html() if len(all_sessions)>0 else "No hospitals/PHCs found in your district with open or booked slots. <br> You can also sign up for slot alerts in neighboring pincodes here : bit.ly/cowin-alerts "
-            subject = "District Centers Summary (%s)"%district
+            subject = "District Centers Summary (%s)"%district_name
         else:
             if (len(available_sessions)==0 or sum(all_sessions['Slots']<2)):
                 print ("%s | %d | DISTRICT : %15s - NO SLOTS AVAILABLE"%(str(NOW)[:16], status_code, district_name[:15]))
