@@ -25,19 +25,22 @@ def fetch_disticts(state_id=16):
     r = requests.get('https://cdn-api.co-vin.in/api/v2/admin/location/districts/%d'%state_id)
     return pd.DataFrame(r.json()['districts'])
 
-def _get_slots_by_pincode(pincode="600096"):
-    today = datetime.datetime.now(tz_india).strftime("%d-%m-%Y")
-    URL = 'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByPin?pincode=%s&date=%s'%(pincode, today)
+def _get_slots_by_pincode(pincode="600096",query_date=None):
+    query_date = datetime.datetime.now(tz_india).strftime("%d-%m-%Y") if query_date is None else query_date
+    URL = 'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByPin?pincode=%s&date=%s'%(pincode, query_date)
     headers = random.choice(headers_list)
     headers['User-Agent'] = ua.random
+    headers['authority'] = 'cdn-api.co-vin.in'
+    headers['referer'] = 'https://www.cowin.gov.in/'
+    headers['origin'] = 'https://www.cowin.gov.in'
     r = requests.Session()
     r.headers = headers
     resp = r.get(URL)
     return resp
 
-def _get_slots_by_district(district="571"):
-    today = datetime.datetime.now(tz_india).strftime("%d-%m-%Y")
-    URL = 'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?district_id=%s&date=%s'%(district, today)
+def _get_slots_by_district(district="571",query_date=None):
+    query_date = datetime.datetime.now(tz_india).strftime("%d-%m-%Y") if query_date is None else query_date
+    URL = 'https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByDistrict?district_id=%s&date=%s'%(district, query_date)
     headers = random.choice(headers_list)
     headers['User-Agent'] = ua.random
     r = requests.Session()
@@ -47,10 +50,12 @@ def _get_slots_by_district(district="571"):
 
 def get_district(pincode="600096"):
     resp = _get_slots_by_pincode(pincode)
-    if resp.json()['centers']:
-        return resp.json()['centers'][0]['district_name']
-    else:
-        return None
+    if resp.status_code==200:
+        if resp.json()['centers']:
+            return resp.json()['centers'][0]['district_name']
+        resp = _get_slots_by_pincode(pincode,query_date='01-05-2021')
+        if resp.json()['centers']:
+            return resp.json()['centers'][0]['district_name']
 
 def gen_dist_map():
     states = fetch_states()
@@ -127,7 +132,7 @@ def save_users(creds, cache_path='dist_map.json'):
             dist_map = json.load(f)
 
     for pincode in users_df['Pincode'].astype(str).unique():
-        if pincode not in dist_map:
+        if pincode not in dist_map or dist_map[pincode]['district_name'] is None:
             dist_name = get_district(pincode)
             dist_map[pincode] = {'district_name':dist_name, 'district_id':dist_name_to_code.get(str(dist_name).upper())}
     with open(cache_path,'w') as f:
